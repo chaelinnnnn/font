@@ -1,0 +1,67 @@
+from PIL import Image, ImageDraw, ImageFont, ImageChops
+import random, os
+
+W, H = 2400, 800
+text = "AMORTAG"
+seed = 7
+random.seed(seed)
+
+# 1) 볼드 산세리프 로드 (환경에 있는 폰트 경로로 교체 가능)
+candidates = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+]
+for c in candidates:
+    if os.path.exists(c):
+        font_path = c; break
+font = ImageFont.truetype(font_path, 500)
+
+# 2) 베이스 텍스트 실루엣
+img = Image.new("RGBA", (W, H), (255,255,255,255))
+draw = ImageDraw.Draw(img)
+bbox = draw.textbbox((0,0), text, font=font)
+tw, th = bbox[2]-bbox[0], bbox[3]-bbox[1]
+x, y = (W - tw)//2, (H - th)//2
+
+silhouette = Image.new("L", (W,H), 0)
+ImageDraw.Draw(silhouette).text((x, y), text, font=font, fill=255)
+
+# 3) 컷 마스크 생성 (위/아래 톱니 + 세로 스트릭)
+cuts = Image.new("L", (W, H), 0); cdraw = ImageDraw.Draw(cuts)
+
+min_gap, max_gap = 8, 28
+min_w, max_w   = 6, 28
+min_h, max_h   = 30, 150
+
+xp = 0
+while xp < W:
+    w = random.randint(min_w, max_w)
+    gap = random.randint(min_gap, max_gap)
+    ht = random.randint(min_h, max_h)
+    hb = random.randint(min_h, max_h)
+    cdraw.polygon([(xp,0),(xp+w,0),(xp+w//2,ht)], fill=255)                # top
+    cdraw.polygon([(xp,H),(xp+w,H),(xp+w//2,H-hb)], fill=255)              # bottom
+    xp += w + gap
+
+streaks = Image.new("L", (W, H), 0); sdraw = ImageDraw.Draw(streaks)
+for _ in range(350):
+    cx = random.randint(0, W-1)
+    w  = random.randint(2,5)
+    h  = random.randint(40,220)
+    y0 = random.randint((H//2)-200, (H//2)+100)
+    y1 = max(0, min(H, y0 + random.choice([-1,1])*h))
+    sdraw.rectangle([cx, min(y0,y1), cx+w, max(y0,y1)], fill=255)
+
+cut_mask = ImageChops.lighter(cuts, streaks)
+
+# 4) 실루엣에서 컷을 빼고 합성
+carved = ImageChops.subtract(silhouette, cut_mask)
+ink = Image.new("RGBA", (W,H), (0,0,0,255))
+final_white_bg = Image.new("RGBA", (W,H), (255,255,255,255))
+final_white_bg = Image.composite(ink, final_white_bg, carved)
+final_white_bg.save("amortag_jagged.png")
+
+# 투명 배경 버전
+transparent = Image.new("RGBA", (W,H), (0,0,0,0))
+transparent = Image.composite(ink, transparent, carved)
+transparent.save("amortag_jagged_transparent.png")
