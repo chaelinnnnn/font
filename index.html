@@ -1,67 +1,590 @@
-from PIL import Image, ImageDraw, ImageFont, ImageChops
-import random, os
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스파이키 타입페이스 뷰어</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #808080;
+            color: #000;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .color-tags {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            flex: 1;
+        }
+        
+        .color-tag {
+            padding: 8px 20px;
+            border-radius: 25px;
+            border: 2px solid #000;
+            background: #fff;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .color-tag:hover {
+            transform: translateY(-2px);
+        }
+        
+        .color-tag.active {
+            background: #000;
+            color: #fff;
+        }
+        
+        .generate-btn {
+            padding: 12px 35px;
+            border-radius: 25px;
+            border: none;
+            background: #000;
+            color: #fff;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .generate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .controls {
+            background: rgba(255, 255, 255, 0.7);
+            padding: 30px;
+            border-radius: 20px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .control-group { margin-bottom: 25px; }
+        .control-group:last-child { margin-bottom: 0; }
+        
+        label { 
+            display: block; 
+            margin-bottom: 12px; 
+            font-weight: 600;
+            font-size: 0.95em;
+            text-transform: lowercase;
+        }
+        
+        .control-row { 
+            display: flex; 
+            align-items: center; 
+            gap: 15px; 
+        }
+        
+        /* 라디오 버튼 스타일 */
+        .control-row.style-selector label {
+            display: inline-flex;
+            align-items: center;
+            margin-right: 20px;
+            margin-bottom: 0;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 1em;
+            text-transform: capitalize;
+        }
 
-W, H = 2400, 800
-text = "AMORTAG"
-seed = 7
-random.seed(seed)
+        input[type="radio"] {
+            margin-right: 8px;
+            transform: scale(1.2);
+        }
+        /* ---- */
+        
+        input[type="range"] { 
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: #000;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #000;
+            cursor: pointer;
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #000;
+            cursor: pointer;
+            border: none;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 15px 20px;
+            font-size: 1.1em;
+            background: #fff;
+            border: 2px solid #000;
+            border-radius: 15px;
+            color: #000;
+            font-weight: 500;
+        }
+        
+        .value-display {
+            min-width: 50px;
+            text-align: center;
+            padding: 6px 15px;
+            background: #fff;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+            border: 2px solid #000;
+        }
+        
+        .canvas-wrapper {
+            margin-bottom: 30px;
+            max-height: 500px;
+            overflow: auto;
+            border-radius: 15px;
+            background: #000;
+            padding: 20px;
+            border: 2px solid #000;
+        }
+        
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <div class="control-group">
+                <label>text</label>
+                <input type="text" id="textInput" value="AMOR" maxlength="20">
+            </div>
+            
+            <div class="control-group">
+                <label>typeface style</label>
+                <div class="control-row style-selector">
+                    <label><input type="radio" name="fontStyle" value="round"> Round Line</label>
+                    <label><input type="radio" name="fontStyle" value="spike" checked> Spiked</label>
+                </div>
+            </div>
 
-# 1) 볼드 산세리프 로드 (환경에 있는 폰트 경로로 교체 가능)
-candidates = [
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-]
-for c in candidates:
-    if os.path.exists(c):
-        font_path = c; break
-font = ImageFont.truetype(font_path, 500)
+            <div class="control-group">
+                <label>line thickness</label>
+                <div class="control-row">
+                    <input type="range" id="lineThickness" min="5" max="15" value="8" step="1">
+                    <span class="value-display" id="thicknessValue">8</span>
+                </div>
+            </div>
+            <div class="control-group">
+                <label>letter size</label>
+                <div class="control-row">
+                    <input type="range" id="letterSize" min="50" max="600" value="300">
+                    <span class="value-display" id="sizeValue">300</span>
+                </div>
+            </div>
+            <div class="control-group">
+                <label>letter spacing</label>
+                <div class="control-row">
+                    <input type="range" id="letterSpacing" min="10" max="100" value="40">
+                    <span class="value-display" id="spacingValue">40</span>
+                </div>
+            </div>
+            <div class="control-group">
+                <label>line spacing</label>
+                <div class="control-row">
+                    <input type="range" id="lineSpacing" min="0" max="10" value="0">
+                    <span class="value-display" id="lineSpacingValue">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="canvas-wrapper">
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <div class="top-bar">
+            <div class="color-tags" id="colorTags"></div>
+            <button class="generate-btn" onclick="downloadPNG()">Generate</button>
+        </div>
+    </div>
+    
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const textInput = document.getElementById('textInput');
+        const lineThickness = document.getElementById('lineThickness');
+        const letterSize = document.getElementById('letterSize');
+        const letterSpacing = document.getElementById('letterSpacing');
+        const lineSpacing = document.getElementById('lineSpacing');
+        const thicknessValue = document.getElementById('thicknessValue');
+        const sizeValue = document.getElementById('sizeValue');
+        const spacingValue = document.getElementById('spacingValue');
+        const lineSpacingValue = document.getElementById('lineSpacingValue');
+        
+        // ==========================================================
+        // 폰트 패턴 정의 (기존 둥근 패턴)
+        // ==========================================================
+        const letters = {
+            'A': [[0,0,0,1,1,1,1,1,1,0,0,0],[0,0,1,1,1,1,1,1,1,1,0,0],[0,1,1,1,1,0,0,1,1,1,1,0],[1,1,1,1,0,0,0,0,1,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1]],
+            'B': [[1,1,1,1,1,1,1,1,1,0,0,0],[1,1,1,1,1,1,1,1,1,1,0,0],[1,1,1,0,0,0,0,1,1,1,1,0],[1,1,1,0,0,0,0,0,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,0,0],[1,1,1,1,1,1,1,1,1,1,0,0],[1,1,1,0,0,0,0,0,1,1,1,1],[1,1,1,0,0,0,0,1,1,1,1,0],[1,1,1,1,1,1,1,1,1,1,0,0],[1,1,1,1,1,1,1,1,1,0,0,0]],
+            'C': [[0,0,1,1,1,1,1,1,1,1,0,0],[0,1,1,1,1,1,1,1,1,1,1,0],[1,1,1,1,0,0,0,0,1,1,1,1],[1,1,1,0,0,0,0,0,0,0,1,1],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,1,1],[1,1,1,1,0,0,0,0,1,1,1,1],[0,1,1,1,1,1,1,1,1,1,1,0],[0,0,1,1,1,1,1,1,1,1,0,0]],
+            'D': [[1,1,1,1,1,1,1,1,0,0,0,0],[1,1,1,1,1,1,1,1,1,0,0,0],[1,1,1,0,0,0,0,1,1,1,0,0],[1,1,1,0,0,0,0,0,1,1,1,0],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,1,1,1,0],[1,1,1,0,0,0,0,1,1,1,0,0],[1,1,1,1,1,1,1,1,1,0,0,0],[1,1,1,1,1,1,1,1,0,0,0,0]],
+            'E': [[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1]],
+            'F': [[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0]],
+            'G': [[0,0,1,1,1,1,1,1,1,1,0,0],[0,1,1,1,1,1,1,1,1,1,1,0],[1,1,1,1,0,0,0,0,1,1,1,1],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,1,1,1,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,1,0,0,0,0,1,1,1,1],[0,1,1,1,1,1,1,1,1,1,1,0],[0,0,1,1,1,1,1,1,1,1,0,0]],
+            'H': [[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1]],
+            'I': [[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1]],
+            'J': [[0,0,0,0,0,1,1,1,1,1,1,1],[0,0,0,0,0,0,1,1,1,1,1,1],[0,0,0,0,0,0,0,1,1,1,1,0],[0,0,0,0,0,0,0,1,1,1,1,0],[0,0,0,0,0,0,0,1,1,1,1,0],[0,0,0,0,0,0,0,1,1,1,1,0],[1,1,0,0,0,0,0,1,1,1,1,0],[1,1,1,0,0,0,1,1,1,1,0,0],[0,1,1,1,1,1,1,1,1,0,0,0],[0,0,1,1,1,1,1,1,0,0,0,0]],
+            'K': [[1,1,1,0,0,0,0,1,1,1,1,0],[1,1,1,0,0,0,1,1,1,1,0,0],[1,1,1,0,0,1,1,1,0,0,0,0],[1,1,1,0,1,1,1,0,0,0,0,0],[1,1,1,1,1,1,0,0,0,0,0,0],[1,1,1,1,1,1,0,0,0,0,0,0],[1,1,1,0,1,1,1,0,0,0,0,0],[1,1,1,0,0,1,1,1,0,0,0,0],[1,1,1,0,0,0,1,1,1,1,0,0],[1,1,1,0,0,0,0,1,1,1,1,0]],
+            'L': [[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1]],
+            'M': [[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,1,0,0,0,0,1,1,1,1],[1,1,1,1,1,0,0,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,0,1,1,1,1,0,1,1,1],[1,1,1,0,0,1,1,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1]],
+            'N': [[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,1,0,0,0,0,0,1,1,1],[1,1,1,1,1,0,0,0,0,1,1,1],[1,1,1,1,1,1,0,0,0,1,1,1],[1,1,1,0,1,1,1,0,0,1,1,1],[1,1,1,0,0,1,1,1,0,1,1,1],[1,1,1,0,0,0,1,1,1,1,1,1],[1,1,1,0,0,0,0,1,1,1,1,1],[1,1,1,0,0,0,0,0,1,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1]],
+            'O': [[0,1,1,1,1,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,0,0,0,0,1,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,1,0,0,0,0,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[0,1,1,1,1,1,1,1,1,1,1,0]],
+            'P': [[1,1,1,1,1,1,1,1,1,1,0,0],[1,1,1,1,1,1,1,1,1,1,1,0],[1,1,1,0,0,0,0,0,1,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1,1,1,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0],[1,1,1,0,0,0,0,0,0,0,0,0]],
+            'Q': [[0,1,1,1,1,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,0,0,0,0,1,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,1,1,0,0,1,1,1],[1,1,1,0,0,0,1,1,0,1,1,1],[1,1,1,1,0,0,0,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[0,1,1,1,1,1,1,1,0,1,1,1]],
+            'R': [[1,1,1,1,1,1,1,1,1,1,0,0],[1,1,1,1,1,1,1,1,1,1,1,0],[1,1,1,0,0,0,0,0,1,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1,0,0,0,0],[1,1,1,0,0,0,1,1,1,0,0,0],[1,1,1,0,0,0,0,1,1,1,1,0],[1,1,1,0,0,0,0,0,1,1,1,1]],
+            'S': [[0,1,1,1,1,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,0,0,0],[0,1,1,1,1,1,1,1,1,1,0,0],[0,0,1,1,1,1,1,1,1,1,1,0],[0,0,0,0,0,0,0,0,1,1,1,1],[1,1,1,0,0,0,0,0,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[0,1,1,1,1,1,1,1,1,1,1,0]],
+            'T': [[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0]],
+            'U': [[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,1,0,0,0,0,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[0,1,1,1,1,1,1,1,1,1,1,0]],
+            'V': [[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[0,1,1,1,0,0,0,0,1,1,1,0],[0,1,1,1,0,0,0,0,1,1,1,0],[0,1,1,1,0,0,0,0,1,1,1,0],[0,0,1,1,1,0,0,1,1,1,0,0],[0,0,1,1,1,0,0,1,1,1,0,0],[0,0,0,1,1,1,1,1,1,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0]],
+            'W': [[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,1,1,0,0,1,1,1],[1,1,1,0,1,1,1,1,0,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,0,0,1,1,1,1,1],[1,1,1,1,0,0,0,0,1,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1]],
+            'X': [[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,1,0,0,0,0,1,1,1,1],[0,1,1,1,1,0,0,1,1,1,1,0],[0,0,1,1,1,1,1,1,1,1,0,0],[0,0,0,1,1,1,1,1,1,0,0,0],[0,0,0,1,1,1,1,1,1,0,0,0],[0,0,1,1,1,1,1,1,1,1,0,0],[0,1,1,1,1,0,0,1,1,1,1,0],[1,1,1,1,0,0,0,0,1,1,1,1],[1,1,1,0,0,0,0,0,0,1,1,1]],
+            'Y': [[1,1,1,0,0,0,0,0,0,1,1,1],[1,1,1,1,0,0,0,0,1,1,1,1],[0,1,1,1,1,0,0,1,1,1,1,0],[0,0,1,1,1,1,1,1,1,1,0,0],[0,0,0,1,1,1,1,1,1,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0]],
+            'Z': [[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1],[0,0,0,0,0,0,0,1,1,1,1,0],[0,0,0,0,0,0,1,1,1,1,0,0],[0,0,0,0,0,1,1,1,1,0,0,0],[0,0,0,0,1,1,1,1,0,0,0,0],[0,0,0,1,1,1,1,0,0,0,0,0],[0,0,1,1,1,1,0,0,0,0,0,0],[1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1]],
+            ' ': [[0],[0],[0],[0],[0],[0],[0],[0],[0],[0]]
+        };
 
-# 2) 베이스 텍스트 실루엣
-img = Image.new("RGBA", (W, H), (255,255,255,255))
-draw = ImageDraw.Draw(img)
-bbox = draw.textbbox((0,0), text, font=font)
-tw, th = bbox[2]-bbox[0], bbox[3]-bbox[1]
-x, y = (W - tw)//2, (H - th)//2
+        // ==========================================================
+        // 폰트 패턴 정의 (요청하신 스파이키 스타일)
+        // 불규칙하게 픽셀을 1로 채워 날카롭고 파괴적인 느낌을 연출합니다.
+        // ==========================================================
+        const spikeLetters = {
+            'A': [
+                [0,0,1,1,1,1,1,1,1,1,0,0],
+                [0,1,1,1,1,0,0,1,1,1,1,0],
+                [1,1,1,1,0,0,0,0,1,1,1,1],
+                [1,1,0,0,0,0,0,0,0,0,1,1],
+                [1,1,1,1,1,1,1,1,1,1,1,1], // 가로 획
+                [1,1,1,1,1,1,1,1,1,1,1,1], // 가로 획
+                [1,0,1,0,0,0,0,0,0,1,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,1]
+            ],
+            'M': [
+                [1,1,1,1,0,0,0,0,1,1,1,1],
+                [1,1,1,1,1,0,0,1,1,1,1,1],
+                [1,1,1,0,1,1,1,1,0,1,1,1],
+                [1,1,1,0,0,1,1,0,0,1,1,1],
+                [1,1,1,0,0,0,0,0,0,1,1,1],
+                [1,1,1,0,0,0,0,0,0,1,1,1],
+                [1,1,1,0,0,0,0,0,0,1,1,1],
+                [1,1,1,0,0,0,0,0,0,1,1,1],
+                [1,1,1,0,0,0,0,0,0,1,1,1],
+                [1,1,1,0,0,0,0,0,0,1,1,1]
+            ],
+            'O': [
+                [0,1,1,1,1,1,1,1,1,1,1,0],
+                [1,1,1,1,1,1,1,1,1,1,1,1],
+                [1,1,1,0,0,0,0,0,0,1,1,1],
+                [1,0,1,0,0,0,0,0,0,0,1,0],
+                [1,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,1,0,0,0,0,0,0,0,1,0],
+                [1,1,1,0,0,0,0,0,0,1,1,1],
+                [1,1,1,1,1,1,1,1,1,1,1,1],
+                [0,1,1,1,1,1,1,1,1,1,1,0]
+            ],
+            'R': [
+                [1,1,1,1,1,1,1,1,1,1,0,0],
+                [1,1,1,1,1,1,1,1,1,1,1,0],
+                [1,1,1,0,0,0,0,0,1,1,1,1],
+                [1,1,1,0,0,0,0,0,0,1,1,1],
+                [1,1,1,1,1,1,1,1,1,1,1,0],
+                [1,1,1,1,1,1,1,1,0,0,0,0],
+                [1,1,1,0,0,0,1,1,1,0,0,0],
+                [1,1,1,0,0,0,0,1,1,1,1,0],
+                [1,1,1,0,0,0,0,0,1,1,1,1],
+                [1,1,1,0,0,0,0,0,0,1,1,1]
+            ],
+            // 다른 알파벳도 필요에 따라 여기에 추가할 수 있습니다.
+            ' ': [[0],[0],[0],[0],[0],[0],[0],[0],[0],[0]]
+        };
+        // ==========================================================
 
-silhouette = Image.new("L", (W,H), 0)
-ImageDraw.Draw(silhouette).text((x, y), text, font=font, fill=255)
 
-# 3) 컷 마스크 생성 (위/아래 톱니 + 세로 스트릭)
-cuts = Image.new("L", (W, H), 0); cdraw = ImageDraw.Draw(cuts)
+        const colorOptions = [
+            { name: 'Energy', color: '#FF2F05' },
+            { name: 'Focus', color: '#4A62FF' },
+            { name: 'Creativity', color: '#FF0029' },
+            { name: 'Joy', color: '#FFFF00' },
+            { name: 'Balance', color: '#00E20F' },
+            { name: 'Refresh', color: '#30FFEB' },
+            { name: 'Relax', color: '#BB3DFF' }
+        ];
+        
+        let selectedColor = 0;
+        
+        // 색상 태그 생성
+        const colorTags = document.getElementById('colorTags');
+        colorOptions.forEach((option, index) => {
+            const tag = document.createElement('div');
+            tag.className = 'color-tag' + (index === 0 ? ' active' : '');
+            tag.textContent = option.name;
+            tag.addEventListener('click', () => {
+                document.querySelectorAll('.color-tag').forEach(t => t.classList.remove('active'));
+                tag.classList.add('active');
+                selectedColor = index;
+                drawTypeface();
+            });
+            colorTags.appendChild(tag);
+        });
+        
+        function drawTypeface() {
+            const text = textInput.value.toUpperCase();
+            const thickness = parseInt(lineThickness.value);
+            const size = parseInt(letterSize.value);
+            const spacing = parseInt(letterSpacing.value);
+            const lSpacing = parseInt(lineSpacing.value);
+            const selectedStyle = document.querySelector('input[name="fontStyle"]:checked').value;
+            
+            // 선택된 스타일에 따라 사용할 글꼴 패턴 객체를 결정
+            const currentLetters = (selectedStyle === 'spike') ? spikeLetters : letters;
 
-min_gap, max_gap = 8, 28
-min_w, max_w   = 6, 28
-min_h, max_h   = 30, 150
+            let totalWidth = 0;
+            // 캔버스 너비 계산을 위한 임시 루프
+            for (let char of text) {
+                if (currentLetters[char]) {
+                     if (char === ' ') {
+                        totalWidth += size * 0.25 + spacing * 0.6;
+                    } else {
+                        totalWidth += size + spacing;
+                    }
+                }
+            }
+            totalWidth += spacing; // 오른쪽 여백 추가
+            
+            const totalHeight = size + 100;
+            
+            canvas.width = totalWidth;
+            canvas.height = totalHeight;
+            
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            let xOffset = spacing;
+            
+            for (let char of text) {
+                if (currentLetters[char]) {
+                    const color = colorOptions[selectedColor].color;
+                    
+                    if (selectedStyle === 'spike') {
+                        drawSpikeLetter(currentLetters[char], xOffset, 50, size, thickness, lSpacing, color);
+                    } else {
+                        drawRoundLetter(currentLetters[char], xOffset, 50, size, thickness, lSpacing, color);
+                    }
+                    
+                    // 스페이스는 좁은 간격, 일반 글자는 원래 간격
+                    if (char === ' ') {
+                        xOffset += size * 0.25 + spacing * 0.6;
+                    } else {
+                        xOffset += size + spacing;
+                    }
+                } else {
+                    xOffset += size + spacing;
+                }
+            }
+        }
+        
+        // ==========================================================
+        // 둥근 라인 폰트 드로잉 함수 (기존 로직)
+        // ==========================================================
+        function drawRoundLetter(pattern, x, y, size, thickness, lSpacing, color, context = ctx) {
+            const rows = pattern.length;
+            const cols = pattern[0].length;
+            
+            const rowHeight = size / rows;
+            const lineThickness = Math.max(1, rowHeight * 0.7 * (thickness / 10));
+            const actualSpacing = lSpacing * (size / 300);
+            
+            for (let row = 0; row < rows; row++) {
+                const lineY = y + row * rowHeight + (rowHeight - lineThickness) / 2 + row * (actualSpacing / rows);
+                let startCol = -1;
+                
+                for (let col = 0; col <= cols; col++) {
+                    const isActive = col < cols && pattern[row][col] === 1;
+                    
+                    if (isActive && startCol === -1) {
+                        startCol = col;
+                    } else if (!isActive && startCol !== -1) {
+                        const lineX = x + startCol * (size / cols);
+                        const lineWidth = (col - startCol) * (size / cols);
+                        const radius = lineThickness / 2;
+                        
+                        context.fillStyle = color;
+                        context.beginPath();
+                        // 둥근 끝 처리 (기존 로직)
+                        context.arc(lineX + radius, lineY + radius, radius, Math.PI / 2, Math.PI * 3 / 2, false);
+                        context.lineTo(lineX + lineWidth - radius, lineY);
+                        context.arc(lineX + lineWidth - radius, lineY + radius, radius, Math.PI * 3 / 2, Math.PI / 2, false);
+                        context.lineTo(lineX + radius, lineY + lineThickness);
+                        context.closePath();
+                        context.fill();
+                        
+                        startCol = -1;
+                    }
+                }
+            }
+        }
 
-xp = 0
-while xp < W:
-    w = random.randint(min_w, max_w)
-    gap = random.randint(min_gap, max_gap)
-    ht = random.randint(min_h, max_h)
-    hb = random.randint(min_h, max_h)
-    cdraw.polygon([(xp,0),(xp+w,0),(xp+w//2,ht)], fill=255)                # top
-    cdraw.polygon([(xp,H),(xp+w,H),(xp+w//2,H-hb)], fill=255)              # bottom
-    xp += w + gap
+        // ==========================================================
+        // 스파이키/각진 폰트 드로잉 함수 (새로운 로직)
+        // ==========================================================
+        function drawSpikeLetter(pattern, x, y, size, thickness, lSpacing, color, context = ctx) {
+            const rows = pattern.length;
+            const cols = pattern[0].length;
+            
+            const rowHeight = size / rows;
+            const lineThickness = Math.max(1, rowHeight * 0.7 * (thickness / 10));
+            const actualSpacing = lSpacing * (size / 300);
+            
+            for (let row = 0; row < rows; row++) {
+                const lineY = y + row * rowHeight + (rowHeight - lineThickness) / 2 + row * (actualSpacing / rows);
+                let startCol = -1;
+                
+                for (let col = 0; col <= cols; col++) {
+                    const isActive = col < cols && pattern[row][col] === 1;
+                    
+                    if (isActive && startCol === -1) {
+                        startCol = col;
+                    } else if (!isActive && startCol !== -1) {
+                        const lineX = x + startCol * (size / cols);
+                        const lineWidth = (col - startCol) * (size / cols);
+                        
+                        context.fillStyle = color;
+                        // 사각형으로 채워 각진 선을 만듬 (날카로운 느낌 연출)
+                        context.fillRect(lineX, lineY, lineWidth, lineThickness);
+                        
+                        startCol = -1;
+                    }
+                }
+            }
+        }
+        
+        // 이벤트 리스너: 폰트 스타일 라디오 버튼 변경 시 다시 그리기
+        document.querySelectorAll('input[name="fontStyle"]').forEach(radio => {
+            radio.addEventListener('change', drawTypeface);
+        });
 
-streaks = Image.new("L", (W, H), 0); sdraw = ImageDraw.Draw(streaks)
-for _ in range(350):
-    cx = random.randint(0, W-1)
-    w  = random.randint(2,5)
-    h  = random.randint(40,220)
-    y0 = random.randint((H//2)-200, (H//2)+100)
-    y1 = max(0, min(H, y0 + random.choice([-1,1])*h))
-    sdraw.rectangle([cx, min(y0,y1), cx+w, max(y0,y1)], fill=255)
-
-cut_mask = ImageChops.lighter(cuts, streaks)
-
-# 4) 실루엣에서 컷을 빼고 합성
-carved = ImageChops.subtract(silhouette, cut_mask)
-ink = Image.new("RGBA", (W,H), (0,0,0,255))
-final_white_bg = Image.new("RGBA", (W,H), (255,255,255,255))
-final_white_bg = Image.composite(ink, final_white_bg, carved)
-final_white_bg.save("amortag_jagged.png")
-
-# 투명 배경 버전
-transparent = Image.new("RGBA", (W,H), (0,0,0,0))
-transparent = Image.composite(ink, transparent, carved)
-transparent.save("amortag_jagged_transparent.png")
+        textInput.addEventListener('input', drawTypeface);
+        lineThickness.addEventListener('input', (e) => {
+            thicknessValue.textContent = e.target.value;
+            drawTypeface();
+        });
+        letterSize.addEventListener('input', (e) => {
+            sizeValue.textContent = e.target.value;
+            drawTypeface();
+        });
+        letterSpacing.addEventListener('input', (e) => {
+            spacingValue.textContent = e.target.value;
+            drawTypeface();
+        });
+        lineSpacing.addEventListener('input', (e) => {
+            lineSpacingValue.textContent = e.target.value;
+            drawTypeface();
+        });
+        
+        function downloadPNG() {
+            // 고해상도 렌더링을 위한 임시 캔버스 생성
+            const scale = 3; // 3배 고해상도
+            const text = textInput.value.toUpperCase();
+            const thickness = parseInt(lineThickness.value);
+            const size = parseInt(letterSize.value) * scale;
+            const spacing = parseInt(letterSpacing.value) * scale;
+            const lSpacing = parseInt(lineSpacing.value);
+            const selectedStyle = document.querySelector('input[name="fontStyle"]:checked').value;
+            const currentLetters = (selectedStyle === 'spike') ? spikeLetters : letters;
+            
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            let totalWidth = 0;
+            for (let char of text) {
+                if (currentLetters[char]) {
+                    if (char === ' ') {
+                        totalWidth += size * 0.25 + spacing * 0.6;
+                    } else {
+                        totalWidth += size + spacing;
+                    }
+                }
+            }
+            totalWidth += spacing;
+            
+            const totalHeight = size + 100 * scale;
+            
+            tempCanvas.width = totalWidth;
+            tempCanvas.height = totalHeight;
+            
+            tempCtx.fillStyle = '#000';
+            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            
+            let xOffset = spacing;
+            
+            for (let char of text) {
+                if (currentLetters[char]) {
+                    const color = colorOptions[selectedColor].color;
+                    
+                    if (selectedStyle === 'spike') {
+                        drawSpikeLetter(currentLetters[char], xOffset, 50 * scale, size, thickness, lSpacing, color, tempCtx);
+                    } else {
+                        drawRoundLetter(currentLetters[char], xOffset, 50 * scale, size, thickness, lSpacing, color, tempCtx);
+                    }
+                    
+                    if (char === ' ') {
+                        xOffset += size * 0.25 + spacing * 0.6;
+                    } else {
+                        xOffset += size + spacing;
+                    }
+                }
+            }
+            
+            const link = document.createElement('a');
+            const timestamp = new Date().getTime();
+            const filename = textInput.value.trim() || 'typeface';
+            link.download = `${filename.toLowerCase()}-${selectedStyle}-${timestamp}.png`;
+            link.href = tempCanvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        drawTypeface();
+    </script>
+</body>
+</html>
